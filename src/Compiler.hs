@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Compiler (
   compile
 , runCompile
@@ -5,8 +7,9 @@ module Compiler (
 
 import Prelude hiding (lookup)
 import qualified Data.Map as M
-import AST
 import Control.Monad.State
+
+import AST
 
 data Env = Env {
     _vals    :: M.Map Name (Compiler Term),
@@ -15,26 +18,9 @@ data Env = Env {
 
 initCompileEnv :: Env
 initCompileEnv = Env {
-    _vals = M.fromList [
-                -- ("gensym", gensym),
-                -- ("TmAbs", tmAbs),
-                -- ("_TmAbs", \n t b -> T)
-            ],
-    _counter = 0
+  _vals    = stdlib
+, _counter = 0
 }
-
--- tmAbs :: Compiler Term
--- tmAbs = return $ TmAbs "name" TyString
---                     $ TmAbs "type" TyType
---                         $ TmAbs "body" TyTmTerm
---                             $ TmApp (TmApp (TmApp (TmVar ("_TmAbs")) (TmVar "name")) TmVar "type") TmVar "body"
-
--- gensym :: Compiler Term
--- gensym = do
---     i <- _counter <$> get
---     let ret = TmString $ "_x" ++ show i
---     modify (\s -> s { _counter = i + 1 })
---     return ret
 
 type Compiler = State Env
 
@@ -49,11 +35,12 @@ withVal x tm m = do
     modify (\s -> s { _vals = oldVals })
     return ret
 
-lookup :: Name -> Compiler Term
-lookup x = do
+lookup :: Name -> String -> Compiler Term
+lookup x info = do
     mTm <- M.lookup x <$> vals
+    keys <- M.keys <$> vals
     case mTm of
-        Nothing -> error $ "no such var: " ++ x
+        Nothing -> error $ "no such var: " ++ x ++ " in " ++ show keys
         Just tm -> tm
 
 -- Stage One
@@ -65,21 +52,85 @@ compile :: Term -> Compiler Term
 compile (TmApp tm1 tm2)  = TmApp <$> compile tm1 <*> compile tm2
 compile (TmAbs x tyx tm) = TmAbs x tyx <$> compile tm
 compile (TmSplice tm)    = evaluate tm
+compile (TmBracket _)    = error "Bracket in common term"
+compile (TmTm _)         = error "TmTm in common term"
 compile tm               = return tm
 
 evaluate :: Term -> Compiler Term
 evaluate (TmApp tmf tmx) = do
     tmf' <- evaluate tmf
+    tmx' <- evaluate tmx
     case tmf' of
-        TmVar fx -> lookup fx
-        TmAbs x _ tm -> withVal x tmx $ evaluate tm
+        TmAbs x _ tm -> withVal x tmx' $ evaluate tm
         other -> error $ show other ++ " is not applicable"
 
 evaluate (TmBracket tm)     = TmBracket <$> compile tm
 evaluate (TmSplice tm)      = evaluate tm
-evaluate (TmVar x)          = lookup x
-evaluate tm@(TmInt _)       = return tm
-evaluate tm@(TmString _)    = return tm
-evaluate tm@(TmAbs _ _ _)   = return tm
+evaluate (TmVar x)          = lookup x "evaluate TmVar"
+evaluate (TmTm tmTerm)      = evaluateTm tmTerm
+evaluate tm                 = return tm
+
+evaluateTm :: TmTerm -> Compiler Term
+evaluateTm (TmTmInt tm) = evaluate tm >>= \case
+    TmInt i -> return $ TmInt i
+    _ -> error $ show tm ++ " is not Int"
+
+evaluateTm (TmTmString tm) = evaluate tm >>= \case
+    TmString s -> return $ TmString s
+    _ -> error $ show tm ++ " is not String"
+
+evaluateTm (TmTmVar tm) = evaluate tm >>= \case
+    TmString s -> return $ TmVar s
+    other      -> error $ show other ++ " is not TmVar"
+
+evaluateTm (TmTmApp tm1 tm2) = do
+    tm1' <- evaluate tm1
+    tm2' <- evaluate tm2
+    evaluate $ TmApp tm1' tm2'
+
+evaluateTm (TmTmAbs tm1 tm2 tm3) = do
+    tm1' <- evaluate tm1
+    tm2' <- evaluate tm2
+    tm3' <- evaluate tm3
+    case (tm1', tm2', tm3') of
+        (TmString x, TmType ty, tm)
+          -> return $ TmAbs x ty tm
+        _ -> error $ show "Illegal TmTmAbs"
+
+
+
+--- Stdlib
+stdlib :: M.Map Name (Compiler Term)
+stdlib = M.fromList [
+              ("genstr", TmString <$> genstr)
+            , ("TmAbs", tmAbs)
+            , ("TmVar", tmVar)
+            , ("TyInt", tyInt)
+            ]
+
+genstr :: Compiler String
+genstr = do
+    i <- _counter <$> get
+    let ret = "_x" ++ show i
+    modify (\s -> s { _counter = i + 1 })
+    return ret
+
+tmAbs :: Compiler Term
+tmAbs = do
+    xname <- genstr
+    xtype <- genstr
+    xbody <- genstr
+    return $ TmAbs xname TyString
+                $ TmAbs xtype TyType
+                    $ TmAbs xbody TyQ
+                        $ TmTm $ TmTmAbs (TmVar xname) (TmVar xtype) (TmVar xbody)
+
+tmVar :: Compiler Term
+tmVar = do
+    xname <- genstr
+    return $ TmAbs xname TyString (TmTm $ TmTmVar $ TmVar xname)
+
+tyInt :: Compiler Term
+tyInt = return $ TmType TyInt
 
 

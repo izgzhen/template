@@ -35,5 +35,6 @@ typeCheck env (TmSplice tm) = do
         else error $ "TmSplice inner " ++ show tm ++ "is not typed as TyQ, but is " ++ show tytm
 
 typeCheck env (TmBracket tm) = return TyQ
+typeCheck env (TmType _) = return TyType
+typeCheck env (TmTm _)   = return TyQ
 
-typeCheck env (TmTerm _)     = error "= ="

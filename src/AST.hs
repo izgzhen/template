@@ -9,17 +9,23 @@ data Term = TmInt Int
           | TmAbs Name Type Term
           | TmSplice Term
           | TmBracket Term
-          | TmTerm Term
           | TmType Type
+          | TmTm TmTerm
           deriving (Show, Eq)
+
+data TmTerm = TmTmInt Term
+            | TmTmString Term
+            | TmTmVar Term
+            | TmTmApp Term Term
+            | TmTmAbs Term Term Term
+            deriving (Show, Eq)
 
 data Type = TyInt
           | TyString
           | TyArrow Type Type
-          | TyQ
           | TyBottom
           | TyType
-          | TyTmTerm
+          | TyQ
           deriving (Eq)
 
 instance Show Type where
@@ -29,4 +35,4 @@ instance Show Type where
     show TyQ      = "Q"
     show TyBottom = "⊥"
     show TyType   = "TyType"
-    show TyTmTerm = "TyTmTerm"
+
