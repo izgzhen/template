@@ -68,16 +68,16 @@ evaluate t@(TmApp tmf tmx) = traceTm' t $ do
     tmf' <- evaluate tmf
     tmx' <- evaluate tmx
     case traceTm' (TmApp tmf' tmx') tmf' of
-        TmAbs x _ tm -> withVal x tmx' $ do
-                            vals' <- vals
-                            evaluate $ trace ("Vals: " ++ show (M.keys vals')) tm
+        TmAbs x _ tm -> do
+            let tm' = substIn x tmx' tm
+            vals' <- vals
+            evaluate $ trace ("Vals: " ++ show (M.keys vals')) tm'
         other -> error $ show other ++ " is not applicable"
 
 evaluate t@(TmBracket tm) = traceTm' t $ TmBracket <$> compile tm
 evaluate t@(TmSplice tm)  = traceTm' t $ evaluate tm
 evaluate t@(TmVar x)      = traceTm' t $ lookup x "evaluate TmVar" >>= evaluate
 evaluate t@(TmTm tmTerm)  = traceTm' t $ evaluateTm tmTerm
--- evaluate t@(TmAbs x tyx tm) = traceTm' t $ TmAbs x tyx <$> evaluate tm
 evaluate tm               = traceTm' tm $ return tm
 
 evaluateTm :: TmTerm -> Compiler Term
@@ -106,8 +106,6 @@ evaluateTm (TmTmAbs tm1 tm2 tm3) = do
         (TmString x, TmType ty, tm)
           -> return $ TmAbs x ty tm
         _ -> error $ show "Illegal TmTmAbs"
-
-
 
 --- Stdlib
 stdlib :: M.Map Name (Compiler Term)
@@ -143,4 +141,27 @@ tmVar = do
 tyInt :: Compiler Term
 tyInt = return $ TmType TyInt
 
+substIn :: Name -> Term -> Term -> Term
+substIn x tmx = \case
+    TmVar y | x == y    -> tmx
+            | otherwise -> TmVar y
+    TmApp tm1 tm2       -> TmApp (subst tm1) (subst tm2)
+    t@(TmAbs y tyy tm)
+            | x == y    -> t
+            | otherwise -> TmAbs y tyy (subst tm)
+    TmSplice _          -> error "splicing in splice"
+    TmTm tmTerm         -> TmTm $ substIn' x tmx tmTerm
+    other               -> other
+  where
+    subst = substIn x tmx
+
+substIn' :: Name -> Term -> TmTerm -> TmTerm
+substIn' x tmx = \case
+    TmTmInt tm      -> TmTmInt $ subst tm
+    TmTmString tm   -> TmTmString $ subst tm
+    TmTmVar tm      -> TmTmVar $ subst tm
+    TmTmApp tm1 tm2 -> TmTmApp (subst tm1) (subst tm2)
+    TmTmAbs tm1 tm2 tm3 -> TmTmAbs (subst tm1) (subst tm2) (subst tm3)
+  where
+    subst = substIn x tmx
 

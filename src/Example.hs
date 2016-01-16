@@ -23,7 +23,7 @@ tm1 = TmSplice $
 {-
     $((\(s : String) -> TmAbs s TyInt (TyVar s)) gensym)
 
-    -- should be (\(_x0 : Int -> _x0))
+    -- should be (_x0)
 -}
 
 tm2 :: Term
