@@ -76,10 +76,10 @@ evaluate t@(TmApp tmf tmx) = traceTm' t $ do
             evaluate $ trace ("Vals: " ++ show (M.keys vals')) tm'
         other -> error $ show other ++ " is not applicable"
 
-evaluate t@(TmBracket tm) = traceTm' t $ TmBracket <$> compile tm
+evaluate t@(TmBracket tm) = traceTm' t $ compile tm
 evaluate t@(TmSplice tm)  = traceTm' t $ error "splicing in splice"
 evaluate t@(TmVar x)      = traceTm' t $ lookup x "evaluate TmVar" >>= evaluate
-evaluate t@(TmTm tmTerm)  = traceTm' t $ TmBracket <$> evaluateTm tmTerm
+evaluate t@(TmTm tmTerm)  = traceTm' t $ evaluateTm tmTerm
 evaluate tm               = traceTm' tm $ return tm
 
 evaluateTm :: TmTerm -> Compiler Term
@@ -159,10 +159,10 @@ substIn x tmx = \case
 
 substIn' :: Name -> Term -> TmTerm -> TmTerm
 substIn' x tmx = \case
-    TmTmInt tm      -> TmTmInt $ subst tm
-    TmTmString tm   -> TmTmString $ subst tm
-    TmTmVar tm      -> TmTmVar $ subst tm
-    TmTmApp tm1 tm2 -> TmTmApp (subst tm1) (subst tm2)
+    TmTmInt tm          -> TmTmInt $ subst tm
+    TmTmString tm       -> TmTmString $ subst tm
+    TmTmVar tm          -> TmTmVar $ subst tm
+    TmTmApp tm1 tm2     -> TmTmApp (subst tm1) (subst tm2)
     TmTmAbs tm1 tm2 tm3 -> TmTmAbs (subst tm1) (subst tm2) (subst tm3)
   where
     subst = substIn x tmx

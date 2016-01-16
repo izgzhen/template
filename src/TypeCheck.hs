@@ -21,8 +21,8 @@ initTyEnv = Env {
 }
 
 
-typeCheckTerm :: Env -> Term -> Either String Type
-typeCheckTerm env tm = typeCheckBracket env tm
+typeCheckTerm :: Term -> Either String Type
+typeCheckTerm = typeCheckBracket initTyEnv
 
 -- Stage 1 type Check
 
@@ -43,10 +43,10 @@ typeCheck env tm insert query cont = typeCheck' tm
         typeCheck' (TmApp tm1 tm2) = do
             ty1 <- cont env tm1
             ty2 <- cont env tm2
-            case unify ty2 ty1 of
+            case ty1 `unify` ty2 of
                 LLeft ty3 -> Right ty3
-                _         -> Left $ "Illegal type for TmApp: " ++ show tm1 ++ " : " ++ show ty1 ++
-                                    " and " ++ show tm2 ++ " : " ++ show ty2
+                _         -> Left $ "Illegal type for TmApp, " ++ pprintTm tm1 ++ " : " ++ pprintTy ty1 ++
+                                    " and " ++ pprintTm tm2 ++ " : " ++ pprintTy ty2
 
         typeCheck' (TmAbs x ty tm) = do
             tytm <- cont (insert x ty env) tm
@@ -56,7 +56,7 @@ typeCheck env tm insert query cont = typeCheck' tm
 
 typeCheckBracket env (TmSplice tm) = do
     tytm <- typeCheckSplice env tm
-    return TyBottom
+    return TyWildCard
 
 typeCheckBracket env (TmBracket _) = Left "TmBracket in bracket"
 typeCheckBracket env (TmType _)    = Left "TmType in bracket"
@@ -108,16 +108,18 @@ data Result = LLeft Type
             | Failure
             deriving (Eq, Show)
 
+-- NOTE: unify's two type paramters is directional!
+
 unify :: Type -> Type -> Result
 unify ty1 ty2 = unify' (canonicalize ty1) (canonicalize ty2)
 
 unify' :: [Type] -> [Type] -> Result
-unify' (TyBottom : xs) yss@(y:ys) =
+unify' (TyWildCard : xs) yss@(y:ys) =
     case filter (/= Failure) [ unify' xs tl | tl <- tail $ tails yss ] of
         []    -> Failure
         (x:_) -> x
 
-unify' xss@(x:xs) (TyBottom : ys) =
+unify' xss@(x:xs) (TyWildCard : ys) =
     case filter (/= Failure) [ unify' tl ys | tl <- tail $ tails xss ] of
         []    -> Failure
         (x:_) -> x

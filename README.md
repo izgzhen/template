@@ -1,4 +1,4 @@
-# Template Lambda Calculus
+# Implementation of Template Lambda Calculus
 
 This implementation is based on theory behind Template Haskell [[1]](#ref-1).
 
@@ -37,7 +37,7 @@ The `compileStage1` (i.e. `compile` in `src/Compiler.hs` is very much like a sta
 
 The compile time environment is composed of a name generator and a name to expression binding. The bindings is used to store built-in functions (i.e. `stdlib`) which are mainly syntax-construction functions, as well as compile-time variable bindings.
 
-<mark>XXX</mark>: Why while we have already use `substIn` to reduce the application, we still put the abstraction variable's binding to the environment? It is because, when we are using `substIn`, only compile-time structure will be inspected. Thus, the `$i` in brackets is ignored. So, only with this method, can binding be passed from outer-splicing scope to inner-splicing scope. <mark>Nevertheless, I think it is not an elegant solution</mark>.
+<mark>XXX</mark>: Why while we have already use `substIn` to reduce the application, we still put the abstraction variable's binding to the environment? It is because, when we are using `substIn`, only compile-time structure will be inspected. Thus, the `$i` in brackets is ignored. So, only with this method, can binding be passed from outer-splicing scope to inner-splicing scope. <mark>XXX</mark>: Nevertheless, I think it is not an elegant solution.
 
 ## Correctness
 The first problem is *how to define "correctness" here*?
@@ -106,9 +106,38 @@ The type safety can be categorized into two aspects:
 
 All the divergent cases stated as above (with $\bot$) are belonging to the second one. The common ones are the classical ones for simply typed lambda calculus.
 
+Like the compilation, the type checking also endows contexts. However, for the common cases, typeChecking code can be shared (see `typeCheck`). For meta-specific constructs, type checker behaves differently (see `typeCheckBracket` and `typeCheckSplice`).
 
+So, these rules effective eliminates the meta undefined behaviours:
+
+```haskell
+typeCheckBracket env (TmBracket _) = Left "TmBracket in bracket"
+typeCheckBracket env (TmType _)    = Left "TmType in bracket"
+typeCheckBracket env (TmTm _)      = Left "TmTm in bracket"
+typeCheckSplice env (TmSplice tm)  = Left "TmSplice in splice"
+```
+
+One thing worth noting is that, the splice term inside bracket is typed as `TyWildCard`, meaning a type what can match anything. However, after expansion, it should not appear again. And to well-type the function application under the presence of such type, I come up with a hackish `unify` function (Hope the algorithm is correct :P).
+
+Since the type system is pretty naïve, I will not do any formalization here.
 
 ### Stage safety
+> Theorem #1: For any term input $t$, after the stage 1 compilation, it should have no bracket, splice, `TmTerm` or `TmType` (i.e., is a *common* term).
+
+Proof: Let's look at $Comp$ rules, for COMP-APP, COMP-ABS, it can be inductively proven. For COMP-BRACKET, COMP-TMTERM, COMP-TMTYPE, they should not appear after type checking. For COMP-INT, COMP-STR, and COMP-VAR, it is the trivial case.
+
+Now let's see the non-trivial case: COMP-EVAL.
+
+> Theorem #2: For any term input splice $$t$, after stage 1 evaluation of $t$, it will become common term $t'$.
+
+Proof: EVAL-APP, EVAL-VAR can be proven inductively; EVAL-STR, EVAL-INT, EVAL-TMTYPE are trivial cases; EVAL-SPLICE is eliminated by typing rules; EVAL-BRACKET can be proven using the theorem #1 (<mark>XXX</mark>: mutually recursive); EVAL-TMTERM will be proven later; EVAL-ABS can be reduced to substitution, which can be proven inductively.
+
+> Theorem #3: For any `TmTerm` $tmt$, after `evalTm`, it will become common term $t'$.
+
+Proof: EVALTM-VAR, EVALTM-VAR and EVALTM-STR are trivial cases; Other two can be proven inductively.
+
+
+
 
 ## References
 

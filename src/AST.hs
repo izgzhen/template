@@ -25,7 +25,7 @@ data Type = TyInt
           | TyString
           | TyArrow Type Type
           -- Next nodes are stage 1 only
-          | TyBottom
+          | TyWildCard
           | TyType
           | TyQ
           deriving (Eq, Show)
@@ -35,7 +35,7 @@ pprintTy TyInt    = "Int"
 pprintTy TyString = "String"
 pprintTy (TyArrow ty1 ty2) = "(" ++ pprintTy ty1 ++ " -> " ++ pprintTy ty2 ++ ")"
 pprintTy TyQ      = "Q"
-pprintTy TyBottom = "⊥"
+pprintTy TyWildCard = "_"
 pprintTy TyType   = "TyType"
 
 
