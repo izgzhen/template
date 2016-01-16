@@ -99,6 +99,13 @@ $$\frac{t_1 \mapsto_{eval} s \quad
        {TmTmAbs(t_1, t_2, t_3) \mapsto_{evalTm} \lambda s : T. t_3'}\text{EVALTM-ABS}$$
 
 ### Type safety
+The type safety can be categorized into two aspects:
+
+* Common ones
+* Meta ones
+
+All the divergent cases stated as above (with $\bot$) are belonging to the second one. The common ones are the classical ones for simply typed lambda calculus.
+
 
 
 ### Stage safety
