@@ -28,6 +28,14 @@ type Compiler = State Env
 vals :: Compiler (M.Map Name (Compiler Term))
 vals = _vals <$> get
 
+lookup :: Name -> String -> Compiler Term
+lookup x info = do
+    mTm <- M.lookup x <$> vals
+    keys <- M.keys <$> vals
+    case mTm of
+        Nothing -> error $ "no such var: " ++ x ++ " in " ++ show keys
+        Just tm -> tm
+
 withVal :: Name -> Term -> Compiler a -> Compiler a
 withVal x tm m = do
     oldVals <- vals
@@ -36,13 +44,6 @@ withVal x tm m = do
     modify (\s -> s { _vals = oldVals })
     return ret
 
-lookup :: Name -> String -> Compiler Term
-lookup x info = do
-    mTm <- M.lookup x <$> vals
-    keys <- M.keys <$> vals
-    case mTm of
-        Nothing -> error $ "no such var: " ++ x ++ " in " ++ show keys
-        Just tm -> tm
 
 -- Stage One
 
@@ -55,6 +56,7 @@ compile t@(TmAbs x tyx tm) = traceTm t $ TmAbs x tyx <$> compile tm
 compile t@(TmSplice tm)    = traceTm t $ evaluate tm
 compile t@(TmBracket _)    = traceTm t $ error "Bracket in common term"
 compile t@(TmTm _)         = traceTm t $ error "TmTm in common term"
+compile t@(TmType _)       = traceTm t $ error "TmType in common term"
 compile t                  = traceTm t $ return t
 
 traceTm :: Term -> a -> a
@@ -68,16 +70,16 @@ evaluate t@(TmApp tmf tmx) = traceTm' t $ do
     tmf' <- evaluate tmf
     tmx' <- evaluate tmx
     case traceTm' (TmApp tmf' tmx') tmf' of
-        TmAbs x _ tm -> do
+        TmAbs x _ tm -> withVal x tmx' $ do
             let tm' = substIn x tmx' tm
             vals' <- vals
             evaluate $ trace ("Vals: " ++ show (M.keys vals')) tm'
         other -> error $ show other ++ " is not applicable"
 
 evaluate t@(TmBracket tm) = traceTm' t $ TmBracket <$> compile tm
-evaluate t@(TmSplice tm)  = traceTm' t $ evaluate tm
+evaluate t@(TmSplice tm)  = traceTm' t $ error "splicing in splice"
 evaluate t@(TmVar x)      = traceTm' t $ lookup x "evaluate TmVar" >>= evaluate
-evaluate t@(TmTm tmTerm)  = traceTm' t $ evaluateTm tmTerm
+evaluate t@(TmTm tmTerm)  = traceTm' t $ TmBracket <$> evaluateTm tmTerm
 evaluate tm               = traceTm' tm $ return tm
 
 evaluateTm :: TmTerm -> Compiler Term
@@ -103,8 +105,8 @@ evaluateTm (TmTmAbs tm1 tm2 tm3) = do
     tm2' <- evaluate tm2
     tm3' <- evaluate tm3
     case (tm1', tm2', tm3') of
-        (TmString x, TmType ty, tm)
-          -> return $ TmAbs x ty tm
+        (TmString s, TmType ty, tm)
+          -> return $ TmAbs s ty tm
         _ -> error $ show "Illegal TmTmAbs"
 
 --- Stdlib

@@ -7,6 +7,7 @@ data Term = TmInt Int
           | TmVar Name
           | TmApp Term Term
           | TmAbs Name Type Term
+          -- Next nodes are stage 1 only
           | TmSplice Term
           | TmBracket Term
           | TmType Type
@@ -23,6 +24,7 @@ data TmTerm = TmTmInt Term
 data Type = TyInt
           | TyString
           | TyArrow Type Type
+          -- Next nodes are stage 1 only
           | TyBottom
           | TyType
           | TyQ

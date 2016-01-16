@@ -21,7 +21,7 @@ tm1 = TmSplice $
 
                 
 {-
-    $((\(s : String) -> TmAbs s TyInt (TyVar s)) gensym)
+    $((\(s : String) -> TmAbs s TyInt (TyVar s)) genstr)
 
     -- should be (_x0)
 -}
