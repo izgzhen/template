@@ -8,6 +8,7 @@ module Compiler (
 import Prelude hiding (lookup)
 import qualified Data.Map as M
 import Control.Monad.State
+import Debug.Trace
 
 import AST
 
@@ -49,26 +50,35 @@ runCompile :: Compiler Term -> Term
 runCompile = flip evalState initCompileEnv
 
 compile :: Term -> Compiler Term
-compile (TmApp tm1 tm2)  = TmApp <$> compile tm1 <*> compile tm2
-compile (TmAbs x tyx tm) = TmAbs x tyx <$> compile tm
-compile (TmSplice tm)    = evaluate tm
-compile (TmBracket _)    = error "Bracket in common term"
-compile (TmTm _)         = error "TmTm in common term"
-compile tm               = return tm
+compile t@(TmApp tm1 tm2)  = traceTm t $ TmApp <$> compile tm1 <*> compile tm2
+compile t@(TmAbs x tyx tm) = traceTm t $ TmAbs x tyx <$> compile tm
+compile t@(TmSplice tm)    = traceTm t $ evaluate tm
+compile t@(TmBracket _)    = traceTm t $ error "Bracket in common term"
+compile t@(TmTm _)         = traceTm t $ error "TmTm in common term"
+compile t                  = traceTm t $ return t
+
+traceTm :: Term -> a -> a
+traceTm t  = trace ("compiling " ++ pprintTm t)
+
+traceTm' :: Term -> a -> a
+traceTm' t = trace ("evaluating " ++ pprintTm t)
 
 evaluate :: Term -> Compiler Term
-evaluate (TmApp tmf tmx) = do
+evaluate t@(TmApp tmf tmx) = traceTm' t $ do
     tmf' <- evaluate tmf
     tmx' <- evaluate tmx
-    case tmf' of
-        TmAbs x _ tm -> withVal x tmx' $ evaluate tm
+    case traceTm' (TmApp tmf' tmx') tmf' of
+        TmAbs x _ tm -> withVal x tmx' $ do
+                            vals' <- vals
+                            evaluate $ trace ("Vals: " ++ show (M.keys vals')) tm
         other -> error $ show other ++ " is not applicable"
 
-evaluate (TmBracket tm)     = TmBracket <$> compile tm
-evaluate (TmSplice tm)      = evaluate tm
-evaluate (TmVar x)          = lookup x "evaluate TmVar"
-evaluate (TmTm tmTerm)      = evaluateTm tmTerm
-evaluate tm                 = return tm
+evaluate t@(TmBracket tm) = traceTm' t $ TmBracket <$> compile tm
+evaluate t@(TmSplice tm)  = traceTm' t $ evaluate tm
+evaluate t@(TmVar x)      = traceTm' t $ lookup x "evaluate TmVar" >>= evaluate
+evaluate t@(TmTm tmTerm)  = traceTm' t $ evaluateTm tmTerm
+-- evaluate t@(TmAbs x tyx tm) = traceTm' t $ TmAbs x tyx <$> evaluate tm
+evaluate tm               = traceTm' tm $ return tm
 
 evaluateTm :: TmTerm -> Compiler Term
 evaluateTm (TmTmInt tm) = evaluate tm >>= \case
@@ -86,7 +96,7 @@ evaluateTm (TmTmVar tm) = evaluate tm >>= \case
 evaluateTm (TmTmApp tm1 tm2) = do
     tm1' <- evaluate tm1
     tm2' <- evaluate tm2
-    evaluate $ TmApp tm1' tm2'
+    return $ TmApp tm1' tm2'
 
 evaluateTm (TmTmAbs tm1 tm2 tm3) = do
     tm1' <- evaluate tm1
@@ -128,7 +138,7 @@ tmAbs = do
 tmVar :: Compiler Term
 tmVar = do
     xname <- genstr
-    return $ TmAbs xname TyString (TmTm $ TmTmVar $ TmVar xname)
+    return $ TmAbs xname TyString (TmVar xname)
 
 tyInt :: Compiler Term
 tyInt = return $ TmType TyInt

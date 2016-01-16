@@ -11,7 +11,7 @@ data Term = TmInt Int
           | TmBracket Term
           | TmType Type
           | TmTm TmTerm
-          deriving (Show, Eq)
+          deriving (Eq, Show)
 
 data TmTerm = TmTmInt Term
             | TmTmString Term
@@ -26,13 +26,25 @@ data Type = TyInt
           | TyBottom
           | TyType
           | TyQ
-          deriving (Eq)
+          deriving (Eq, Show)
 
-instance Show Type where
-    show TyInt    = "Int"
-    show TyString = "String"
-    show (TyArrow ty1 ty2) = "(" ++ show ty1 ++ " -> " ++ show ty2 ++ ")"
-    show TyQ      = "Q"
-    show TyBottom = "⊥"
-    show TyType   = "TyType"
+pprintTy :: Type -> String
+pprintTy TyInt    = "Int"
+pprintTy TyString = "String"
+pprintTy (TyArrow ty1 ty2) = "(" ++ pprintTy ty1 ++ " -> " ++ pprintTy ty2 ++ ")"
+pprintTy TyQ      = "Q"
+pprintTy TyBottom = "⊥"
+pprintTy TyType   = "TyType"
+
+
+pprintTm :: Term -> String
+pprintTm (TmInt i)    = show i
+pprintTm (TmString s) = show s
+pprintTm (TmVar name) = name
+pprintTm (TmApp tm1 tm2) = "(" ++ pprintTm tm1 ++ ") (" ++ pprintTm tm2 ++ ")"
+pprintTm (TmAbs x tyx tm) = "λ" ++ x ++ ":" ++ pprintTy tyx ++ ". " ++ pprintTm tm
+pprintTm (TmSplice tm) = "$(" ++ pprintTm tm ++ ")"
+pprintTm (TmBracket tm) = "[| " ++ pprintTm tm ++ "|]"
+pprintTm (TmType ty) = show ty
+pprintTm (TmTm tm) = show tm 
 

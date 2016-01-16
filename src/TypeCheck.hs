@@ -10,7 +10,7 @@ import qualified Data.Map as M
 type Env = M.Map Name Type
 
 initTyEnv :: Env
-initTyEnv = M.empty
+initTyEnv = stdlib
 
 -- Stage 1 type check
 
@@ -20,9 +20,10 @@ typeCheck env (TmVar x) = maybe (Left $ "no such var: " ++ x) Right $ M.lookup x
 typeCheck env (TmApp tm1 tm2) = do
     ty1 <- typeCheck env tm1
     ty2 <- typeCheck env tm2
-    case ty1 of
-        TyArrow ty2 ty3 -> Right ty3
-        _ -> Left $ "Illegal type for TmApp: " ++ show ty1 ++ " and " ++ show ty2
+    case canonicalize ty1 of
+        (ty2:ty:tys) -> Right $ compose $ ty : tys
+        _ -> Left $ "Illegal type for TmApp: " ++ show tm1 ++ " : " ++ show ty1 ++
+                    " and " ++ show tm2 ++ " : " ++ show ty2
 
 typeCheck env (TmAbs x ty tm) = do
     tytm <- typeCheck (M.insert x ty env) tm
@@ -37,4 +38,21 @@ typeCheck env (TmSplice tm) = do
 typeCheck env (TmBracket tm) = return TyQ
 typeCheck env (TmType _) = return TyType
 typeCheck env (TmTm _)   = return TyQ
+
+
+stdlib = M.fromList [
+              ("genstr", TyString)
+            , ("TmAbs", TyArrow (TyArrow (TyArrow TyString TyType) TyQ) TyQ)
+            , ("TmVar", TyArrow TyString TyQ)
+            , ("TyInt", TyType)
+            ]
+
+canonicalize :: Type -> [Type]
+canonicalize (TyArrow ty1 ty2) = canonicalize ty1 ++ canonicalize ty2
+canonicalize ty = [ty]
+
+compose :: [Type] -> Type
+compose (tx:ty:tys) = TyArrow tx (compose $ ty : tys)
+compose (tx:[])     = tx
+compose []          = error "can't compose empty type"
 
